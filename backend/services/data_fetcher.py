@@ -1,22 +1,25 @@
-"""
-Data fetching service for financial data using yfinance
-Author: Lucas Soares (Quant A - Single Asset Analysis)
-"""
+
 
 import yfinance as yf
 import pandas as pd
+import numpy as np
 from datetime import datetime, timedelta
-from typing import Dict, Tuple, Optional
+from typing import Dict, List, Optional, Tuple
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 class DataFetcher:
-    """
-    Service to fetch financial data from Yahoo Finance with caching
-    """
+    
+
+    SUPPORTED_ASSETS = {
+        'stocks': ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'AMZN', 'META', 'NVDA', 'JPM'],
+        'etfs': ['SPY', 'QQQ', 'IWM', 'VTI', 'EFA'],
+        'crypto': ['BTC-USD', 'ETH-USD', 'SOL-USD'],
+        'forex': ['EURUSD=X', 'GBPUSD=X', 'USDJPY=X'],
+        'french': ['ENGI.PA', 'TTE.PA', 'BNP.PA', 'SAN.PA']
+    }
 
     PERIOD_MAP = {
         'daily': '1d',
@@ -28,11 +31,11 @@ class DataFetcher:
         self._cache: Dict[str, Tuple[pd.DataFrame, datetime]] = {}
         self._cache_duration = timedelta(minutes=5)
 
-    def _is_cache_valid(self, cache_key: str) -> bool:
-        """Check if cached data is still valid"""
-        if cache_key not in self._cache:
+    def _is_cache_valid(self, symbol: str) -> bool:
+        
+        if symbol not in self._cache:
             return False
-        _, timestamp = self._cache[cache_key]
+        _, timestamp = self._cache[symbol]
         return datetime.now() - timestamp < self._cache_duration
 
     def get_asset_data(
@@ -41,17 +44,7 @@ class DataFetcher:
         period: str = '1y',
         interval: str = 'daily'
     ) -> Optional[pd.DataFrame]:
-        """
-        Fetch historical asset data with caching
 
-        Args:
-            symbol: Asset ticker symbol
-            period: Time period (e.g., '1y', '6mo', '5d')
-            interval: Data interval (daily, weekly, monthly)
-
-        Returns:
-            DataFrame with OHLCV data or None on error
-        """
         cache_key = f"{symbol}_{period}_{interval}"
 
         if self._is_cache_valid(cache_key):
@@ -68,18 +61,15 @@ class DataFetcher:
                 logger.warning(f"No data returned for {symbol}")
                 return None
 
-            # Clean column names
             df = df.reset_index()
             df.columns = [col.lower().replace(' ', '_') for col in df.columns]
 
-            # Handle date column
             if 'date' in df.columns:
                 df['date'] = pd.to_datetime(df['date']).dt.tz_localize(None)
             elif 'datetime' in df.columns:
                 df['date'] = pd.to_datetime(df['datetime']).dt.tz_localize(None)
                 df = df.drop(columns=['datetime'])
 
-            # Cache the result
             self._cache[cache_key] = (df.copy(), datetime.now())
             logger.info(f"Fetched {len(df)} rows for {symbol}")
 
@@ -88,3 +78,216 @@ class DataFetcher:
         except Exception as e:
             logger.error(f"Error fetching data for {symbol}: {str(e)}")
             return None
+
+    def get_asset_data_with_dates(
+        self,
+        symbol: str,
+        start: str,
+        end: str,
+        interval: str = 'daily'
+    ) -> Optional[pd.DataFrame]:
+
+        cache_key = f"{symbol}_{start}_{end}_{interval}"
+
+        if self._is_cache_valid(cache_key):
+            logger.info(f"Returning cached data for {symbol}")
+            return self._cache[cache_key][0].copy()
+
+        try:
+            ticker = yf.Ticker(symbol)
+            yf_interval = self.PERIOD_MAP.get(interval, '1d')
+
+            df = ticker.history(start=start, end=end, interval=yf_interval)
+
+            if df.empty:
+                logger.warning(f"No data returned for {symbol}")
+                return None
+
+            df = df.reset_index()
+            df.columns = [col.lower().replace(' ', '_') for col in df.columns]
+
+            if 'date' in df.columns:
+                df['date'] = pd.to_datetime(df['date']).dt.tz_localize(None)
+            elif 'datetime' in df.columns:
+                df['date'] = pd.to_datetime(df['datetime']).dt.tz_localize(None)
+                df = df.drop(columns=['datetime'])
+
+            self._cache[cache_key] = (df.copy(), datetime.now())
+            logger.info(f"Fetched {len(df)} rows for {symbol} from {start} to {end}")
+
+            return df
+
+        except Exception as e:
+            logger.error(f"Error fetching data for {symbol}: {str(e)}")
+            return None
+
+    def get_current_price(self, symbol: str) -> Optional[Dict]:
+        
+        cache_key = f"{symbol}_price"
+
+        if self._is_cache_valid(cache_key):
+            return self._cache[cache_key][0]
+
+        try:
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period='5d')
+
+            if hist.empty:
+                return None
+
+            current_price = hist['Close'].iloc[-1]
+            previous_close = hist['Close'].iloc[-2] if len(hist) > 1 else hist['Open'].iloc[-1]
+
+            change = current_price - previous_close
+            change_percent = (change / previous_close * 100) if previous_close else 0
+
+            result = {
+                'symbol': symbol,
+                'price': round(float(current_price), 2),
+                'change': round(float(change), 2),
+                'change_percent': round(float(change_percent), 2),
+                'currency': 'USD',
+                'name': symbol,
+                'volume': int(hist['Volume'].iloc[-1]) if 'Volume' in hist.columns else None,
+                'timestamp': datetime.now().isoformat()
+            }
+
+            self._cache[cache_key] = (result, datetime.now())
+            return result
+
+        except Exception as e:
+            logger.error(f"Error getting current price for {symbol}: {str(e)}")
+            return None
+
+    def get_multiple_assets(
+        self,
+        symbols: List[str],
+        period: str = '1y',
+        interval: str = 'daily'
+    ) -> Dict[str, pd.DataFrame]:
+        
+        results = {}
+
+        for symbol in symbols:
+            data = self.get_asset_data(symbol, period, interval)
+            if data is not None:
+                results[symbol] = data
+
+        return results
+
+    def get_aligned_prices(
+        self,
+        symbols: List[str],
+        period: str = '1y',
+        interval: str = 'daily',
+        start: str = None,
+        end: str = None
+    ) -> Optional[pd.DataFrame]:
+
+        try:
+            if start and end:
+                data = yf.download(
+                    symbols,
+                    start=start,
+                    end=end,
+                    interval=self.PERIOD_MAP.get(interval, '1d'),
+                    group_by='ticker',
+                    auto_adjust=True,
+                    progress=False
+                )
+            else:
+                data = yf.download(
+                    symbols,
+                    period=period,
+                    interval=self.PERIOD_MAP.get(interval, '1d'),
+                    group_by='ticker',
+                    auto_adjust=True,
+                    progress=False
+                )
+
+            if data.empty:
+                return None
+
+            if len(symbols) == 1:
+                prices = data['Close'].to_frame(name=symbols[0])
+            else:
+                prices = data.xs('Close', level=1, axis=1)
+
+            prices = prices.dropna()
+            prices.index = pd.to_datetime(prices.index).tz_localize(None)
+
+            return prices
+
+        except Exception as e:
+            logger.error(f"Error fetching aligned prices: {str(e)}")
+            return None
+
+    def get_available_symbols(self) -> Dict[str, List[str]]:
+        
+        return self.SUPPORTED_ASSETS.copy()
+
+    def validate_symbol(self, symbol: str) -> bool:
+        
+        try:
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period='5d')
+            return not hist.empty
+        except Exception:
+            return False
+
+    def get_bulk_quotes(self, symbols: List[str]) -> List[Dict]:
+        
+        cache_key = f"bulk_{'_'.join(sorted(symbols))}"
+
+        if self._is_cache_valid(cache_key):
+            return self._cache[cache_key][0]
+
+        try:
+            symbols_str = ' '.join(symbols)
+            data = yf.download(symbols_str, period='5d', group_by='ticker', progress=False, threads=True)
+
+            quotes = []
+            for symbol in symbols:
+                try:
+                    if len(symbols) == 1:
+                        hist = data
+                    else:
+                        hist = data[symbol] if symbol in data.columns.get_level_values(0) else None
+
+                    if hist is None or hist.empty:
+                        continue
+
+                    hist = hist.dropna()
+                    if len(hist) < 2:
+                        continue
+
+                    current_price = float(hist['Close'].iloc[-1])
+                    previous_close = float(hist['Close'].iloc[-2])
+
+                    change = current_price - previous_close
+                    change_percent = (change / previous_close * 100) if previous_close else 0
+
+                    quotes.append({
+                        'symbol': symbol,
+                        'price': round(current_price, 2),
+                        'change': round(change, 2),
+                        'changePercent': round(change_percent, 2),
+                    })
+                except Exception as e:
+                    logger.warning(f"Error processing {symbol}: {e}")
+                    continue
+
+            self._cache[cache_key] = (quotes, datetime.now())
+            return quotes
+
+        except Exception as e:
+            logger.error(f"Error fetching bulk quotes: {e}")
+            return []
+
+    def clear_cache(self):
+        
+        self._cache.clear()
+        logger.info("Cache cleared")
+
+# Singleton instance for use across the application
+data_fetcher = DataFetcher()

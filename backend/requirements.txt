@@ -16,3 +16,6 @@ pytz>=2024.1
 
 # Environment variables
 python-dotenv>=1.0.0
+# Prediction dependencies
+prophet>=1.1.0
+scipy>=1.10.0

@@ -210,8 +210,8 @@ class PortfolioAnalyzer:
         else:
             freq_map = {
                 RebalanceFrequency.WEEKLY: 'W',
-                RebalanceFrequency.MONTHLY: 'M',
-                RebalanceFrequency.QUARTERLY: 'Q'
+                RebalanceFrequency.MONTHLY: 'ME',
+                RebalanceFrequency.QUARTERLY: 'QE'
             }
 
             portfolio_returns = pd.Series(index=self.returns.index, dtype=float)
@@ -254,8 +254,8 @@ class PortfolioAnalyzer:
 
         freq_map = {
             RebalanceFrequency.WEEKLY: 'W',
-            RebalanceFrequency.MONTHLY: 'M',
-            RebalanceFrequency.QUARTERLY: 'Q',
+            RebalanceFrequency.MONTHLY: 'ME',
+            RebalanceFrequency.QUARTERLY: 'QE',
             RebalanceFrequency.DAILY: 'D'
         }
 

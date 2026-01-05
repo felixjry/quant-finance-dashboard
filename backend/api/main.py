@@ -134,6 +134,7 @@ async def get_asset_metrics(
     }
 
 @app.get("/api/asset/{symbol}/strategy")
+@app.post("/api/asset/{symbol}/strategy")
 async def run_strategy(
     symbol: str,
     strategy: str = Query(default="buy_and_hold"),
@@ -259,13 +260,23 @@ async def analyze_portfolio(
 
     dates = prices.index.strftime('%Y-%m-%d').tolist()
 
+    # Pre-calculate normalized prices and cumulative returns to avoid index misalignment
+    normalized_prices = {}
+    for asset in symbols:
+        normalized_prices[asset] = (prices[asset] / prices[asset].iloc[0]).tolist()
+
+    cumulative_returns_list = result.cumulative_returns.tolist()
+
+    # Build chart_data with proper length checking
     chart_data = []
-    for i, date in enumerate(dates):
-        point = {"date": date}
+    min_length = min(len(dates), len(cumulative_returns_list))
+    for i in range(min_length):
+        point = {"date": dates[i]}
         for asset in symbols:
-            normalized = (prices[asset] / prices[asset].iloc[0]).tolist()
-            point[asset] = round(normalized[i], 4)
-        point["portfolio"] = round(result.cumulative_returns.iloc[i], 4)
+            if i < len(normalized_prices[asset]):
+                point[asset] = round(normalized_prices[asset][i], 4)
+        if i < len(cumulative_returns_list):
+            point["portfolio"] = round(cumulative_returns_list[i], 4)
         chart_data.append(point)
 
     correlation_data = []

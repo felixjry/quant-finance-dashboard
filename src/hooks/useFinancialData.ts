@@ -66,10 +66,10 @@ export function useStrategy(
   } = {}
 ) {
   return useQuery({
-    queryKey: ['strategy', symbol, strategy, period, options],
+    queryKey: ['strategy', symbol, strategy, period, options.interval, options.lookback_period, options.short_window, options.long_window],
     queryFn: () => api.runStrategy(symbol, strategy, period, options),
     refetchInterval: REFETCH_INTERVAL,
-    staleTime: 2 * 60 * 1000,
+    staleTime: 0,
     enabled: !!symbol && !!strategy,
   });
 }
@@ -142,7 +142,7 @@ export function usePrediction(
   return useQuery({
     queryKey: ['prediction', symbol, period, forecastDays],
     queryFn: () => api.predictPrice(symbol, period, forecastDays),
-    staleTime: 10 * 60 * 1000,
+    staleTime: 0,
     enabled: !!symbol,
   });
 }

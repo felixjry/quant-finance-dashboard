@@ -70,6 +70,8 @@ export function useStrategy(
     queryFn: () => api.runStrategy(symbol, strategy, period, options),
     refetchInterval: REFETCH_INTERVAL,
     staleTime: 0,
+    gcTime: 0, // Previously cacheTime, forces no caching
+    refetchOnMount: true,
     enabled: !!symbol && !!strategy,
   });
 }

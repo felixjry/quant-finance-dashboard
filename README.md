@@ -17,7 +17,7 @@ The application runs 24/7 on a Google Cloud VM.
 | Role | Student | Email | Module |
 |------|---------|-------|--------|
 | Quant A | Lucas Soares | lucas.soares@edu.devinci.fr | Single Asset Analysis |
-| Quant B | Felix Jouary | fjouary@gmail.com | Multi-Asset Portfolio |
+| Quant B | Felix Jouary | felix.jouary@edu.devinci.fr | Multi-Asset Portfolio |
 
 ## Overview
 
@@ -153,8 +153,8 @@ API documentation: http://localhost:8000/docs
 cd quant-finance-dashboard
 
 npm install
-npm run dev      # Development
-npm run build    # Production
+npm run dev
+npm run build
 ```
 
 Frontend runs on http://localhost:8080
@@ -200,7 +200,7 @@ sudo systemctl restart nginx
 cd backend/scripts
 chmod +x cron_setup.sh
 ./cron_setup.sh
-crontab -l  # Verify
+crontab -l
 ```
 
 ## API Endpoints
@@ -296,7 +296,7 @@ tail -f backend/logs/cron.log
 ## Contact
 
 Lucas Soares - lucas.soares@edu.devinci.fr
-Felix Jouary - fjouary@gmail.com
+Felix Jouary - felix.jouary@edu.devinci.fr
 
 Repository: https://github.com/felixjry/quant-finance-dashboard
 Live Demo: http://34.163.147.93
